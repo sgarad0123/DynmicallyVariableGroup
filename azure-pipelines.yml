@@ -6,6 +6,7 @@ pool:
 
 variables:
 - group: vg-create-vg-source
+- group: devops-secrets-vg 
 
 steps:
 - script: |
