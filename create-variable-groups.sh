@@ -13,7 +13,7 @@ fi
 ENCODED_PAT=$(printf ":%s" "$PAT" | base64 | tr -d '\n')
 AUTH_HEADER="Authorization: Basic $ENCODED_PAT"
 
-# Support both lowercase and uppercase org/project
+# Support both lowercase and uppercase for org/project
 ORG="${org:-${ORG}}"
 PROJECT="${project:-${PROJECT}}"
 
@@ -68,7 +68,7 @@ env | grep -Ei '^vg[0-9]+_name=' | while IFS='=' read -r VAR_NAME VG_NAME; do
 
   echo "🔧 Creating Variable Group: $VG_NAME"
 
-  # Construct variables JSON
+  # Construct variables JSON object manually
   VARIABLES_JSON="{"
   for i in "${!KEYS[@]}"; do
     K="${KEYS[$i]}"
@@ -78,16 +78,22 @@ env | grep -Ei '^vg[0-9]+_name=' | while IFS='=' read -r VAR_NAME VG_NAME; do
   done
   VARIABLES_JSON+="}"
 
-  # Final payload using jq
+  # Write variable JSON to a file
+  echo "$VARIABLES_JSON" > variables.json
+
+  echo "📂 Variable JSON written to variables.json:"
+  cat variables.json
+
+  # Final body with --slurpfile to safely load object
   BODY=$(jq -n \
     --arg name "$VG_NAME" \
-    --argjson variables "$VARIABLES_JSON" \
     --arg projectId "$PROJECT_ID" \
     --arg projectName "$PROJECT" \
+    --slurpfile variables variables.json \
     '{
       type: "Vsts",
       name: $name,
-      variables: $variables,
+      variables: $variables[0],
       variableGroupProjectReferences: [
         {
           projectReference: {
