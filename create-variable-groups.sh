@@ -9,11 +9,17 @@ if [[ -z "$PAT" ]]; then
   exit 1
 fi
 
+# Securely encode PAT for Basic Auth
 ENCODED_PAT=$(printf ":%s" "$PAT" | base64 | tr -d '\n')
 AUTH_HEADER="Authorization: Basic $ENCODED_PAT"
 
-ORG="$org"
-PROJECT="$project"
+# Support both lowercase and uppercase var names
+ORG="${org:-$ORG}"
+PROJECT="${project:-$PROJECT}"
+
+# Debug print
+echo "🔍 org: $ORG"
+echo "🔍 project: $PROJECT"
 
 if [[ -z "$ORG" || -z "$PROJECT" ]]; then
   echo "❌ ERROR: org or project not defined"
@@ -29,10 +35,10 @@ if [[ "$PROJECT_ID" == "null" || -z "$PROJECT_ID" ]]; then
   exit 1
 fi
 
-echo "✅ Project ID: $PROJECT_ID"
+echo "✅ Found project ID: $PROJECT_ID"
 
-# Find all vg#_name from env
-env | grep '^vg[0-9]_name=' | while IFS='=' read -r VAR_NAME VG_NAME; do
+# Loop through all vgX_name variables
+env | grep -E '^vg[0-9]+_name=' | while IFS='=' read -r VAR_NAME VG_NAME; do
   INDEX=$(echo "$VAR_NAME" | grep -oP '^vg\K[0-9]+')
   KEYS_VAR="vg${INDEX}_keys"
   VALUES_VAR="vg${INDEX}_values"
@@ -49,21 +55,21 @@ env | grep '^vg[0-9]_name=' | while IFS='=' read -r VAR_NAME VG_NAME; do
   IFS=',' read -r -a VALUES <<< "$VALUES_RAW"
 
   if [[ "${#KEYS[@]}" -ne "${#VALUES[@]}" ]]; then
-    echo "❌ ERROR: Mismatch in key/value count for $VG_NAME"
+    echo "❌ ERROR: Mismatch in number of keys and values for $VG_NAME"
     continue
   fi
 
-  # Build variable JSON
+  # Build the variable group variables JSON
   VARIABLES_JSON="{"
   for i in "${!KEYS[@]}"; do
-    KEY_TRIMMED=$(echo "${KEYS[$i]}" | xargs)
-    VALUE_TRIMMED=$(echo "${VALUES[$i]}" | xargs)
-    VARIABLES_JSON+="\"$KEY_TRIMMED\": {\"value\": \"$VALUE_TRIMMED\", \"isSecret\": false}"
+    K="${KEYS[$i]}"
+    V="${VALUES[$i]}"
+    VARIABLES_JSON+="\"${K//\"/}\\\": { \"value\": \"${V//\"/}\", \"isSecret\": false }"
     [[ $i -lt $((${#KEYS[@]} - 1)) ]] && VARIABLES_JSON+=","
   done
   VARIABLES_JSON+="}"
 
-  # Final body
+  # Construct payload using jq
   BODY=$(jq -n \
     --arg name "$VG_NAME" \
     --argjson variables "$VARIABLES_JSON" \
@@ -86,19 +92,23 @@ env | grep '^vg[0-9]_name=' | while IFS='=' read -r VAR_NAME VG_NAME; do
 
   echo "$BODY" > payload.json
   echo "📤 Creating Variable Group: $VG_NAME"
+  echo "📄 JSON payload saved to payload.json"
+  jq . payload.json
 
   URL="https://dev.azure.com/$ORG/$PROJECT/_apis/distributedtask/variablegroups?api-version=7.1-preview.2"
+
   RESPONSE_FILE=$(mktemp)
   HTTP_CODE=$(curl --http1.1 -s -w "%{http_code}" -o "$RESPONSE_FILE" -X POST \
     -H "$AUTH_HEADER" \
     -H "Content-Type: application/json" \
     -d @payload.json "$URL")
 
+  echo "🌐 curl response HTTP code: $HTTP_CODE"
   if [[ "$HTTP_CODE" -ge 400 || "$HTTP_CODE" -eq 000 ]]; then
     echo "❌ ERROR: Failed to create variable group $VG_NAME"
     cat "$RESPONSE_FILE"
   else
-    echo "✅ Created variable group $VG_NAME"
+    echo "✅ Variable group $VG_NAME created successfully!"
   fi
 
 done
