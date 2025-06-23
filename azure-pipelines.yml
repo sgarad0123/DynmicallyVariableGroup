@@ -1,0 +1,21 @@
+trigger: none
+
+pool: 
+  name: AKS
+  vmImage: 'ubuntu-latest'
+
+variables:
+- group: devops-secrets-vg
+
+steps:
+- script: |
+    if ! command -v jq &> /dev/null; then
+      echo "jq not found, installing locally..."
+      curl -L -o jq https://github.com/stedolan/jq/releases/latest/download/jq-linux64
+      chmod +x jq
+      export PATH=$PATH:.
+    fi
+
+    chmod +x ./create-variable-groups.sh
+    ./create-variable-groups.sh "$(AZURE_DEVOPS_PAT)"
+  displayName: 'Create Variable Groups from JSON'
