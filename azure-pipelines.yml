@@ -35,7 +35,7 @@ EOF
         echo "✅ export-vars.sh created"
 
   - task: Bash@3
-    displayName: "🔧 Make create-multi-env-vgs.sh executable"
+    displayName: "🔐 Make create-multi-env-vgs.sh Executable"
     inputs:
       targetType: 'inline'
       script: |
@@ -48,9 +48,16 @@ EOF
       script: |
         source ./export-vars.sh
 
-        echo "🔁 Environments to process: ${{ join(',', parameters.environments) }}"
-        
-        for env in DEV SIT UAT PT PROD DR; do
-          echo "🧩 Creating variable group for \$env - \$track1_appid - \$track1_name"
-          ./create-multi-env-vgs.sh "$env" "$track1_appid" "$track1_name" "$track1_type" "$track1_apptype"
+        echo "🔁 Environments to process: ${{ parameters.environments }}"
+
+        trackname="${track1_name}"
+        tracktype="${track1_type}"
+        appid="${track1_appid}"
+        apptype="${track1_apptype}"
+
+        echo "🧩 Track 1: name=$trackname, type=$tracktype, appid=$appid, apptype=$apptype"
+
+        for env in "${{ parameters.environments[0] }}" "${{ parameters.environments[1] }}" "${{ parameters.environments[2] }}" "${{ parameters.environments[3] }}" "${{ parameters.environments[4] }}" "${{ parameters.environments[5] }}"; do
+          echo "➡️ Creating variable group for $env - $appid - $trackname"
+          ./create-multi-env-vgs.sh "$env" "$appid" "$trackname" "$tracktype" "$apptype"
         done
