@@ -1,22 +1,65 @@
 trigger: none
 
-pool: 
+pool:
   name: AKS
   vmImage: 'ubuntu-latest'
 
 variables:
-- group: vg-create-vg-source
-- group: devops-secrets-vg 
+  - group: vg-create-vg-source
+  - group: devops-secrets-vg
+
+parameters:
+  - name: environments
+    type: object
+    default:
+      - DEV
+      - SIT
+      - UAT
+      - PT
+      - PROD
+      - DR
 
 steps:
-- script: |
-    if ! command -v jq &> /dev/null; then
-      echo "jq not found, installing locally..."
-      curl -L -o jq https://github.com/stedolan/jq/releases/latest/download/jq-linux64
-      chmod +x jq
-      export PATH=$PATH:.
-    fi
+  - task: Bash@3
+    name: GenerateExportVars
+    displayName: "🔧 Generate export-vars.sh"
+    inputs:
+      targetType: 'inline'
+      script: |
+        echo "🔧 Generating export-vars.sh..."
+        cat > export-vars.sh <<EOF
+#!/bin/bash
+export ORG="${ORG}"
+export PROJECT="${PROJECT}"
+export AZURE_DEVOPS_PAT="${AZURE_DEVOPS_PAT}"
+export TRACKCOUNT=1
+export track1_name="${track1_name}"
+export track1_type="${track1_type}"
+export track1_appid="${track1_appid}"
+export track1_apptype="${track1_apptype}"
+EOF
+        chmod +x export-vars.sh
+        echo "✅ export-vars.sh created"
 
-    chmod +x ./create-variable-groups.sh
-    ./create-variable-groups.sh "$(AZURE_DEVOPS_PAT)"
-  displayName: 'Create Variable Groups from JSON'
+  - task: Bash@3
+    name: MakeExecutable
+    displayName: "🔧 Make create-multi-env-vgs.sh Executable"
+    inputs:
+      targetType: 'inline'
+      script: |
+        chmod +x ./create-multi-env-vgs.sh
+
+  - task: Bash@3
+    name: CreateVariableGroups
+    displayName: "🚀 Create Variable Groups"
+    inputs:
+      targetType: 'inline'
+      script: |
+        source ./export-vars.sh
+
+        echo "🔁 Environments to process: ${{ join(',', parameters.environments) }}"
+
+        for env in "${{ parameters.environments[@] }}"; do
+          echo "🧩 Track 1 - Creating variable group for \$env"
+          ./create-multi-env-vgs.sh "$env" "$track1_appid" "$track1_name" "$track1_type" "$track1_apptype"
+        done
