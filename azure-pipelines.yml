@@ -11,23 +11,16 @@ variables:
 parameters:
   - name: environments
     type: object
-    default:
-      - DEV
-      - SIT
-      - UAT
-      - PT
-      - PROD
-      - DR
+    default: ['DEV', 'SIT', 'UAT', 'PT', 'PROD', 'DR']
 
 steps:
   - task: Bash@3
-    name: GenerateExportVars
     displayName: "🔧 Generate export-vars.sh"
     inputs:
       targetType: 'inline'
       script: |
         echo "🔧 Generating export-vars.sh..."
-        cat > export-vars.sh <<EOF
+        cat <<EOF > export-vars.sh
 #!/bin/bash
 export ORG="${ORG}"
 export PROJECT="${PROJECT}"
@@ -42,15 +35,13 @@ EOF
         echo "✅ export-vars.sh created"
 
   - task: Bash@3
-    name: MakeExecutable
-    displayName: "🔧 Make create-multi-env-vgs.sh Executable"
+    displayName: "🔧 Make create-multi-env-vgs.sh executable"
     inputs:
       targetType: 'inline'
       script: |
         chmod +x ./create-multi-env-vgs.sh
 
   - task: Bash@3
-    name: CreateVariableGroups
     displayName: "🚀 Create Variable Groups"
     inputs:
       targetType: 'inline'
@@ -58,8 +49,8 @@ EOF
         source ./export-vars.sh
 
         echo "🔁 Environments to process: ${{ join(',', parameters.environments) }}"
-
-        for env in "${{ parameters.environments[@] }}"; do
-          echo "🧩 Track 1 - Creating variable group for \$env"
+        
+        for env in DEV SIT UAT PT PROD DR; do
+          echo "🧩 Creating variable group for \$env - \$track1_appid - \$track1_name"
           ./create-multi-env-vgs.sh "$env" "$track1_appid" "$track1_name" "$track1_type" "$track1_apptype"
         done
